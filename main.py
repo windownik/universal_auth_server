@@ -5,6 +5,7 @@ from fastapi.openapi.utils import get_openapi
 
 from lib.sql_connect import app
 
+
 ip_server = os.environ.get("IP_SERVER")
 ip_port = os.environ.get("PORT_SERVER")
 
@@ -22,6 +23,7 @@ def custom_openapi():
         routes=app.routes,
         tags=[
             {'name': 'Auth', 'description': "Auth user methods in server"},
+            {'name': 'Devices', 'description': "Device management"},
         ]
     )
     app.openapi_schema = openapi_schema

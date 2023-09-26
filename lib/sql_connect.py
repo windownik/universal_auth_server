@@ -105,6 +105,17 @@ async def get_user_id(db: Depends, token_type: str, token: str, device_id: str):
     return data
 
 
+async def get_user_id_by_token(db: Depends, token_type: str, token: str):
+    """Get user_id by token and device id"""
+    now = datetime.datetime.now()
+    data = await db.fetch(f"SELECT user_id, death_date FROM token "
+                          f"WHERE token_type = $1 "
+                          f"AND token = $2 "
+                          f"AND death_date > $3;",
+                          token_type, token, now)
+    return data
+
+
 # Обновляем информацию
 async def update_user_active(db: Depends, user_id: int):
     now = datetime.datetime.now()
