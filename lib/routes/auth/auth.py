@@ -197,6 +197,7 @@ async def create_account_user(phone: int, sms_code: int, device_id: str, device_
     """Create new account in service with phone number, device_id and device_name"""
 
     code_date = await conn.check_sms_code(db=db, phone=phone, sms_code=sms_code, device_id=device_id)
+    print(code_date)
     if not code_date:
         return JSONResponse(content={"ok": False,
                                      'description': 'No user with this phone number, device_id or bad sms_cod'},
