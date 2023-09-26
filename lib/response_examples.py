@@ -103,7 +103,7 @@ post_create_account_res = {
                     "odd": {
                         "summary": "Success",
                         "value": {"ok": False,
-                                  'description': 'SMS code is too old'}
+                                  'description': 'Reason'}
                     },
                 }
             }
