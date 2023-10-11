@@ -154,9 +154,47 @@ async def login_user(access_token: str, device_id: str, db=Depends(data_b.connec
                         status_code=_status.HTTP_200_OK)
 
 
-@app.post(path='/login', tags=['Auth'], responses=get_login_res)
-async def login_user(phone: int, sms_code: int, device_id: str, device_name: str, db=Depends(data_b.connection)):
-    """Login user in service by phone number, device_id and device_name"""
+# @app.post(path='/login', tags=['Auth'], responses=get_login_res)
+# async def login_user(phone: int, sms_code: int, device_id: str, device_name: str, db=Depends(data_b.connection)):
+#     """Login user in service by phone number, device_id and device_name"""
+#
+#     code_date = await conn.check_sms_code(db=db, phone=phone, sms_code=sms_code, device_id=device_id)
+#     if not code_date:
+#         return JSONResponse(content={"ok": False,
+#                                      'description': 'No user with this phone number, device_id or bad sms_cod'},
+#                             status_code=_status.HTTP_401_UNAUTHORIZED)
+#     if datetime.datetime.now() - datetime.timedelta(minutes=5) > code_date[0][0]:
+#         return JSONResponse(content={"ok": False,
+#                                      'description': 'SMS code is too old'},
+#                             status_code=_status.HTTP_400_BAD_REQUEST)
+#
+#     user_data = await conn.read_data(db=db, name='*', table='auth', id_name='phone', id_data=phone)
+#     if user_data:
+#         await conn.delete_old_tokens(db)
+#         await conn.delete_all_tokens_with_device_id(db=db, device_id=device_id)
+#         user_id = user_data[0][0]
+#     else:
+#         return JSONResponse(content={"ok": False,
+#                                      'description': 'No user with this phone number, device_id or bad sms_cod'},
+#                             status_code=_status.HTTP_401_UNAUTHORIZED)
+#
+#     access = await conn.create_token(db=db, user_id=user_id, token_type='access', device_id=device_id,
+#                                      device_name=device_name)
+#     refresh = await conn.create_token(db=db, user_id=user_id, token_type='refresh', device_id=device_id,
+#                                       device_name=device_name)
+#
+#     return JSONResponse(content={"ok": True,
+#                                  'user_id': user_id,
+#                                  'access_token': access[0][0],
+#                                  'refresh_token': refresh[0][0]
+#                                  },
+#                         status_code=_status.HTTP_200_OK)
+
+
+@app.post(path='/check_sms', tags=['Auth'], responses=post_create_account_res)
+async def check_sms_code(phone: int, sms_code: int, device_id: str, device_name: str,
+                         db=Depends(data_b.connection)):
+    """Create new account in service with phone number, device_id and device_name"""
 
     code_date = await conn.check_sms_code(db=db, phone=phone, sms_code=sms_code, device_id=device_id)
     if not code_date:
@@ -173,58 +211,57 @@ async def login_user(phone: int, sms_code: int, device_id: str, device_name: str
         await conn.delete_old_tokens(db)
         await conn.delete_all_tokens_with_device_id(db=db, device_id=device_id)
         user_id = user_data[0][0]
+        access = (await conn.create_token(db=db, user_id=user_id, token_type='access', device_id=device_id,
+                                          device_name=device_name))[0][0]
+        refresh = (await conn.create_token(db=db, user_id=user_id, token_type='refresh', device_id=device_id,
+                                           device_name=device_name))[0][0]
     else:
-        return JSONResponse(content={"ok": False,
-                                     'description': 'No user with this phone number, device_id or bad sms_cod'},
-                            status_code=_status.HTTP_401_UNAUTHORIZED)
-
-    access = await conn.create_token(db=db, user_id=user_id, token_type='access', device_id=device_id,
-                                     device_name=device_name)
-    refresh = await conn.create_token(db=db, user_id=user_id, token_type='refresh', device_id=device_id,
-                                      device_name=device_name)
+        user_id = 0
+        access = 0
+        refresh = 0
 
     return JSONResponse(content={"ok": True,
                                  'user_id': user_id,
-                                 'access_token': access[0][0],
-                                 'refresh_token': refresh[0][0]
+                                 'access_token': access,
+                                 'refresh_token': refresh
                                  },
                         status_code=_status.HTTP_200_OK)
 
 
-@app.post(path='/create_account', tags=['Auth'], responses=post_create_account_res)
-async def create_account_user(phone: int, sms_code: int, device_id: str, device_name: str,
-                              db=Depends(data_b.connection)):
-    """Create new account in service with phone number, device_id and device_name"""
-
-    code_date = await conn.check_sms_code(db=db, phone=phone, sms_code=sms_code, device_id=device_id)
-    if not code_date:
-        return JSONResponse(content={"ok": False,
-                                     'description': 'No user with this phone number, device_id or bad sms_cod'},
-                            status_code=_status.HTTP_401_UNAUTHORIZED)
-    if datetime.datetime.now() - datetime.timedelta(minutes=5) > code_date[0][0]:
-        return JSONResponse(content={"ok": False,
-                                     'description': 'SMS code is too old'},
-                            status_code=_status.HTTP_400_BAD_REQUEST)
-
-    user_data = await conn.read_data(db=db, name='*', table='auth', id_name='phone', id_data=phone)
-    if user_data:
-        return JSONResponse(content={"ok": False,
-                                     'description': 'Have user with this phone number please login'},
-                            status_code=_status.HTTP_400_BAD_REQUEST)
-
-    user_id = (await conn.create_user_id(db=db, phone=phone))[0][0]
-
-    access = await conn.create_token(db=db, user_id=user_id, token_type='access', device_id=device_id,
-                                     device_name=device_name)
-    refresh = await conn.create_token(db=db, user_id=user_id, token_type='refresh', device_id=device_id,
-                                      device_name=device_name)
-
-    return JSONResponse(content={"ok": True,
-                                 'user_id': user_id,
-                                 'access_token': access[0][0],
-                                 'refresh_token': refresh[0][0]
-                                 },
-                        status_code=_status.HTTP_200_OK)
+# @app.post(path='/create_account', tags=['Auth'], responses=post_create_account_res)
+# async def create_account_user(phone: int, sms_code: int, device_id: str, device_name: str,
+#                               db=Depends(data_b.connection)):
+#     """Create new account in service with phone number, device_id and device_name"""
+#
+#     code_date = await conn.check_sms_code(db=db, phone=phone, sms_code=sms_code, device_id=device_id)
+#     if not code_date:
+#         return JSONResponse(content={"ok": False,
+#                                      'description': 'No user with this phone number, device_id or bad sms_cod'},
+#                             status_code=_status.HTTP_401_UNAUTHORIZED)
+#     if datetime.datetime.now() - datetime.timedelta(minutes=5) > code_date[0][0]:
+#         return JSONResponse(content={"ok": False,
+#                                      'description': 'SMS code is too old'},
+#                             status_code=_status.HTTP_400_BAD_REQUEST)
+#
+#     user_data = await conn.read_data(db=db, name='*', table='auth', id_name='phone', id_data=phone)
+#     if user_data:
+#         return JSONResponse(content={"ok": False,
+#                                      'description': 'Have user with this phone number please login'},
+#                             status_code=_status.HTTP_400_BAD_REQUEST)
+#
+#     user_id = (await conn.create_user_id(db=db, phone=phone))[0][0]
+#
+#     access = await conn.create_token(db=db, user_id=user_id, token_type='access', device_id=device_id,
+#                                      device_name=device_name)
+#     refresh = await conn.create_token(db=db, user_id=user_id, token_type='refresh', device_id=device_id,
+#                                       device_name=device_name)
+#
+#     return JSONResponse(content={"ok": True,
+#                                  'user_id': user_id,
+#                                  'access_token': access[0][0],
+#                                  'refresh_token': refresh[0][0]
+#                                  },
+#                         status_code=_status.HTTP_200_OK)
 
 
 @app.get(path='/check_phone', tags=['Auth'], responses=check_phone_res)
