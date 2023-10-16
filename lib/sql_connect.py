@@ -119,7 +119,7 @@ async def get_user_id_by_token(db: Depends, token_type: str, token: str):
 # Обновляем информацию
 async def update_user_active(db: Depends, user_id: int):
     now = datetime.datetime.now()
-    await db.fetch(f"UPDATE all_users SET last_active=$1 WHERE user_id=$2;",
+    await db.fetch(f"UPDATE users SET last_active=$1 WHERE user_id=$2;",
                    int(time.mktime(now.timetuple())), user_id)
 
 

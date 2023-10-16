@@ -86,7 +86,7 @@ async def get_user_id_by_token(access_token: str, db=Depends(data_b.connection))
         return JSONResponse(content={"ok": False,
                                      'description': "bad access token or device_id, please login"},
                             status_code=_status.HTTP_401_UNAUTHORIZED)
-
+    await conn.update_user_active(db=db, user_id=user_id[0][0])
     return {"ok": True,
             'user_id': user_id[0][0]}
 
@@ -217,8 +217,8 @@ async def check_sms_code(phone: int, sms_code: int, device_id: str, device_name:
                                            device_name=device_name))[0][0]
     else:
         user_id = 0
-        access = 0
-        refresh = 0
+        access = '0'
+        refresh = '0'
 
     return JSONResponse(content={"ok": True,
                                  'user_id': user_id,
@@ -228,40 +228,29 @@ async def check_sms_code(phone: int, sms_code: int, device_id: str, device_name:
                         status_code=_status.HTTP_200_OK)
 
 
-# @app.post(path='/create_account', tags=['Auth'], responses=post_create_account_res)
-# async def create_account_user(phone: int, sms_code: int, device_id: str, device_name: str,
-#                               db=Depends(data_b.connection)):
-#     """Create new account in service with phone number, device_id and device_name"""
-#
-#     code_date = await conn.check_sms_code(db=db, phone=phone, sms_code=sms_code, device_id=device_id)
-#     if not code_date:
-#         return JSONResponse(content={"ok": False,
-#                                      'description': 'No user with this phone number, device_id or bad sms_cod'},
-#                             status_code=_status.HTTP_401_UNAUTHORIZED)
-#     if datetime.datetime.now() - datetime.timedelta(minutes=5) > code_date[0][0]:
-#         return JSONResponse(content={"ok": False,
-#                                      'description': 'SMS code is too old'},
-#                             status_code=_status.HTTP_400_BAD_REQUEST)
-#
-#     user_data = await conn.read_data(db=db, name='*', table='auth', id_name='phone', id_data=phone)
-#     if user_data:
-#         return JSONResponse(content={"ok": False,
-#                                      'description': 'Have user with this phone number please login'},
-#                             status_code=_status.HTTP_400_BAD_REQUEST)
-#
-#     user_id = (await conn.create_user_id(db=db, phone=phone))[0][0]
-#
-#     access = await conn.create_token(db=db, user_id=user_id, token_type='access', device_id=device_id,
-#                                      device_name=device_name)
-#     refresh = await conn.create_token(db=db, user_id=user_id, token_type='refresh', device_id=device_id,
-#                                       device_name=device_name)
-#
-#     return JSONResponse(content={"ok": True,
-#                                  'user_id': user_id,
-#                                  'access_token': access[0][0],
-#                                  'refresh_token': refresh[0][0]
-#                                  },
-#                         status_code=_status.HTTP_200_OK)
+@app.post(path='/create_account', tags=['Auth'], responses=post_create_account_res)
+async def create_account_user(phone: int, device_id: str, device_name: str, db=Depends(data_b.connection)):
+    """Create new account in service with phone number, device_id and device_name"""
+
+    user_data = await conn.read_data(db=db, name='*', table='auth', id_name='phone', id_data=phone)
+    if user_data:
+        return JSONResponse(content={"ok": False,
+                                     'description': 'Have user with this phone number please login'},
+                            status_code=_status.HTTP_400_BAD_REQUEST)
+
+    user_id = (await conn.create_user_id(db=db, phone=phone))[0][0]
+
+    access = await conn.create_token(db=db, user_id=user_id, token_type='access', device_id=device_id,
+                                     device_name=device_name)
+    refresh = await conn.create_token(db=db, user_id=user_id, token_type='refresh', device_id=device_id,
+                                      device_name=device_name)
+
+    return JSONResponse(content={"ok": True,
+                                 'user_id': user_id,
+                                 'access_token': access[0][0],
+                                 'refresh_token': refresh[0][0]
+                                 },
+                        status_code=_status.HTTP_200_OK)
 
 
 @app.get(path='/check_phone', tags=['Auth'], responses=check_phone_res)
