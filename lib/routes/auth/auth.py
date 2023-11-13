@@ -91,6 +91,23 @@ async def get_user_id_by_token(access_token: str, db=Depends(data_b.connection))
             'user_id': user_id[0][0]}
 
 
+@app.get(path='/admin_block_user', tags=['Auth'], responses=get_user_id_res)
+async def get_user_id_by_token(access_token: str, user_id: int, db=Depends(data_b.connection)):
+    """access_token: This is access token. You can get it when create account or login."""
+    _user_id = await conn.get_user_id_by_token(db=db, token_type='access', token=access_token)
+    if not _user_id:
+        return JSONResponse(content={"ok": False,
+                                     'description': "bad access token or device_id, please login"},
+                            status_code=_status.HTTP_401_UNAUTHORIZED)
+    await conn.delete_old_tokens(db)
+    await conn.delete_where(db, table="token", id_name="user_id", data=user_id)
+
+    return JSONResponse(content={"ok": True,
+                                 'description': 'User blocked'
+                                 },
+                        status_code=_status.HTTP_200_OK)
+
+
 @app.get(path='/devices', tags=['Devices'], responses=get_devices_res)
 async def get_all_users_device_list(access_token: str, device_id: str, db=Depends(data_b.connection)):
     """refresh_token: This is refresh token, use it for create new access token.
