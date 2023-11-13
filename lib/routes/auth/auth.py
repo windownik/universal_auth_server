@@ -91,19 +91,17 @@ async def get_user_id_by_token(access_token: str, db=Depends(data_b.connection))
             'user_id': user_id[0][0]}
 
 
-@app.get(path='/admin_block_user', tags=['Auth'], responses=get_user_id_res)
+@app.get(path='/admin_delete_tokens', tags=['Auth'], responses=get_user_id_res)
 async def get_user_id_by_token(access_token: str, user_id: int, db=Depends(data_b.connection)):
     """access_token: This is access token. You can get it when create account or login."""
-    _user_id = await conn.get_user_id_by_token(db=db, token_type='access', token=access_token)
-    if not _user_id:
-        return JSONResponse(content={"ok": False,
-                                     'description': "bad access token or device_id, please login"},
-                            status_code=_status.HTTP_401_UNAUTHORIZED)
+    res = await check_admin(access_token=access_token, db=db)
+    if type(res) != int:
+        return res
     await conn.delete_old_tokens(db)
     await conn.delete_where(db, table="token", id_name="user_id", data=user_id)
 
     return JSONResponse(content={"ok": True,
-                                 'description': 'User blocked'
+                                 'description': 'Users tokens was deleted'
                                  },
                         status_code=_status.HTTP_200_OK)
 
@@ -303,3 +301,20 @@ async def send_sms_code_to_phone(phone: int, device_id: str, db=Depends(data_b.c
                                      'description': 'Cant create, write to the admin.', },
                             status_code=_status.HTTP_400_BAD_REQUEST00_OK,
                             headers={'content-type': 'application/json; charset=utf-8'})
+
+
+async def check_admin(access_token: str, db: Depends):
+    """Check services access token for admin"""
+    _user_id = await conn.get_user_id_by_token(db=db, token_type='access', token=access_token)
+    if not _user_id:
+        return JSONResponse(content={"ok": False,
+                                     'description': "bad access token or device_id, please login"},
+                            status_code=_status.HTTP_401_UNAUTHORIZED)
+
+    user_data = await conn.read_data(db=db, table='users', id_name='user_id', id_data=_user_id[0]["user_id"])
+
+    if user_data[0]["user_type"] != 'admin':
+        return JSONResponse(content={"ok": False,
+                                     'description': "Not enough rights"},
+                            status_code=500)
+    return _user_id[0]["user_id"]
