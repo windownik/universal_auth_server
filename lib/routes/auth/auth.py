@@ -8,6 +8,7 @@ from starlette.responses import JSONResponse, HTMLResponse
 
 from lib import sql_connect as conn
 from lib.response_examples import *
+from lib.routes.auth.hash_funcs import check_password
 from lib.sql_connect import data_b, app
 
 ip_server = os.environ.get("IP_SERVER")
@@ -169,43 +170,6 @@ async def login_user(access_token: str, device_id: str, db=Depends(data_b.connec
                         status_code=_status.HTTP_200_OK)
 
 
-# @app.post(path='/login', tags=['Auth'], responses=get_login_res)
-# async def login_user(phone: int, sms_code: int, device_id: str, device_name: str, db=Depends(data_b.connection)):
-#     """Login user in service by phone number, device_id and device_name"""
-#
-#     code_date = await conn.check_sms_code(db=db, phone=phone, sms_code=sms_code, device_id=device_id)
-#     if not code_date:
-#         return JSONResponse(content={"ok": False,
-#                                      'description': 'No user with this phone number, device_id or bad sms_cod'},
-#                             status_code=_status.HTTP_401_UNAUTHORIZED)
-#     if datetime.datetime.now() - datetime.timedelta(minutes=5) > code_date[0][0]:
-#         return JSONResponse(content={"ok": False,
-#                                      'description': 'SMS code is too old'},
-#                             status_code=_status.HTTP_400_BAD_REQUEST)
-#
-#     user_data = await conn.read_data(db=db, name='*', table='auth', id_name='phone', id_data=phone)
-#     if user_data:
-#         await conn.delete_old_tokens(db)
-#         await conn.delete_all_tokens_with_device_id(db=db, device_id=device_id)
-#         user_id = user_data[0][0]
-#     else:
-#         return JSONResponse(content={"ok": False,
-#                                      'description': 'No user with this phone number, device_id or bad sms_cod'},
-#                             status_code=_status.HTTP_401_UNAUTHORIZED)
-#
-#     access = await conn.create_token(db=db, user_id=user_id, token_type='access', device_id=device_id,
-#                                      device_name=device_name)
-#     refresh = await conn.create_token(db=db, user_id=user_id, token_type='refresh', device_id=device_id,
-#                                       device_name=device_name)
-#
-#     return JSONResponse(content={"ok": True,
-#                                  'user_id': user_id,
-#                                  'access_token': access[0][0],
-#                                  'refresh_token': refresh[0][0]
-#                                  },
-#                         status_code=_status.HTTP_200_OK)
-
-
 @app.post(path='/check_sms', tags=['Auth'], responses=post_create_account_res)
 async def check_sms_code(phone: int, sms_code: int, device_id: str, device_name: str,
                          db=Depends(data_b.connection)):
@@ -243,6 +207,41 @@ async def check_sms_code(phone: int, sms_code: int, device_id: str, device_name:
                         status_code=_status.HTTP_200_OK)
 
 
+@app.post(path='/login', tags=['Auth'], responses=post_create_account_res)
+async def check_sms_code(login: str, password: str, device_id: str, device_name: str,
+                         db=Depends(data_b.connection)):
+    """Create new account in service with phone number, device_id and device_name"""
+
+    user_date = await conn.read_data(db=db, table="auth", id_name="login", id_data=login)
+    if not user_date:
+        return JSONResponse(content={"ok": False,
+                                     'description': 'No user with this login and password'},
+                            status_code=_status.HTTP_401_UNAUTHORIZED)
+
+    status = check_password(input_password=password, stored_hashed_password=user_date[0]["hash_code"],
+                            salt=user_date[0]["salt"])
+
+    if not status:
+        return JSONResponse(content={"ok": False,
+                                     'description': 'No user with this login and password'},
+                            status_code=_status.HTTP_401_UNAUTHORIZED)
+
+    await conn.delete_old_tokens(db)
+    await conn.delete_all_tokens_with_device_id(db=db, device_id=device_id)
+    user_id = user_date[0][0]
+    access = (await conn.create_token(db=db, user_id=user_id, token_type='access', device_id=device_id,
+                                      device_name=device_name))[0][0]
+    refresh = (await conn.create_token(db=db, user_id=user_id, token_type='refresh', device_id=device_id,
+                                       device_name=device_name))[0][0]
+
+    return JSONResponse(content={"ok": True,
+                                 'user_id': user_id,
+                                 'access_token': access,
+                                 'refresh_token': refresh
+                                 },
+                        status_code=_status.HTTP_200_OK)
+
+
 @app.post(path='/create_account', tags=['Auth'], responses=post_create_account_res)
 async def create_account_user(phone: int, device_id: str, device_name: str, db=Depends(data_b.connection)):
     """Create new account in service with phone number, device_id and device_name"""
@@ -268,12 +267,54 @@ async def create_account_user(phone: int, device_id: str, device_name: str, db=D
                         status_code=_status.HTTP_200_OK)
 
 
+@app.post(path='/create_account_login', tags=['Auth'], responses=post_create_account_res)
+async def create_account_user_with_login(login: str, password: str, device_id: str, device_name: str,
+                                         db=Depends(data_b.connection)):
+    """Create new account in service with phone number, device_id and device_name"""
+
+    user_data = await conn.read_data(db=db, name='*', table='auth', id_name='login', id_data=login)
+    if user_data:
+        return JSONResponse(content={"ok": False,
+                                     'description': 'Have user with this login please login'},
+                            status_code=_status.HTTP_400_BAD_REQUEST)
+
+    user_id = (await conn.create_user_id_login(db=db, login=login, password=password))[0][0]
+
+    access = await conn.create_token(db=db, user_id=user_id, token_type='access', device_id=device_id,
+                                     device_name=device_name)
+    refresh = await conn.create_token(db=db, user_id=user_id, token_type='refresh', device_id=device_id,
+                                      device_name=device_name)
+
+    return JSONResponse(content={"ok": True,
+                                 'user_id': user_id,
+                                 'access_token': access[0][0],
+                                 'refresh_token': refresh[0][0]
+                                 },
+                        status_code=_status.HTTP_200_OK)
+
+
 @app.get(path='/check_phone', tags=['Auth'], responses=check_phone_res)
 async def check_phone(phone: int, db=Depends(data_b.connection), ):
     """You can check if such a phone number is in the database. Phone number is unique\n
     phone: int phone for check it in db"""
 
     user_data = await conn.read_data(db=db, name='*', table='auth', id_name='phone', id_data=phone)
+    if not user_data:
+        return JSONResponse(content={"ok": True,
+                                     'description': 'This phone is not in database', },
+                            status_code=_status.HTTP_200_OK,
+                            headers={'content-type': 'application/json; charset=utf-8'})
+    return JSONResponse(content={"ok": False,
+                                 'description': 'This phone is in database', },
+                        status_code=_status.HTTP_400_BAD_REQUEST)
+
+
+@app.get(path='/check_login', tags=['Auth'], responses=check_phone_res)
+async def check_phone(login: int, db=Depends(data_b.connection), ):
+    """You can check if such a login is in the database. Login is unique\n
+    login: str login for check it in db"""
+
+    user_data = await conn.read_data(db=db, name='*', table='auth', id_name='login', id_data=login)
     if not user_data:
         return JSONResponse(content={"ok": True,
                                      'description': 'This phone is not in database', },

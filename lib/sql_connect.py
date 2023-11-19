@@ -7,6 +7,7 @@ from fastapi_asyncpg import configure_asyncpg
 from lib.app_init import app
 from fastapi import Depends
 
+from lib.routes.auth.hash_funcs import generate_salt, hash_password
 
 password = os.environ.get("DATABASE_PASS")
 host = os.environ.get("DATABASE_HOST")
@@ -54,6 +55,9 @@ async def create_auth_table(db):
     await db.execute(f'''CREATE TABLE IF NOT EXISTS auth (
  user_id SERIAL PRIMARY KEY,
  phone BIGINT UNIQUE,
+ login TEXT UNIQUE,
+ hash_code TEXT DEFAULT '0',
+ salt TEXT DEFAULT '0',
  create_date timestamp
  )''')
 
@@ -90,6 +94,18 @@ async def create_user_id(db: Depends, phone: int,):
     token = await db.fetch(f"INSERT INTO auth (phone, create_date) "
                            f"VALUES ($1, $2) "
                            f"ON CONFLICT DO NOTHING RETURNING user_id;", phone, create_date)
+    return token
+
+
+# Создаем новый токен
+async def create_user_id_login(db: Depends, login: str, password: str):
+    salt = generate_salt()
+    hash_code = hash_password(password=password, salt=salt)
+
+    create_date = datetime.datetime.now()
+    token = await db.fetch(f"INSERT INTO auth (login, hash_code, salt, create_date) "
+                           f"VALUES ($1, $2, $3, $4) "
+                           f"ON CONFLICT DO NOTHING RETURNING user_id;", login, hash_code, salt, create_date)
     return token
 
 
