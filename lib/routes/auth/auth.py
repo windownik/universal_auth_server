@@ -218,8 +218,7 @@ async def check_sms_code(login: str, password: str, device_id: str, device_name:
                                      'description': 'No user with this login and password'},
                             status_code=_status.HTTP_401_UNAUTHORIZED)
 
-    status = check_password(input_password=password, stored_hashed_password=user_date[0]["hash_code"],
-                            salt=user_date[0]["salt"])
+    status = check_password(input_password=password, stored_hashed_password=user_date[0]["hash_code"])
 
     if not status:
         return JSONResponse(content={"ok": False,
@@ -309,7 +308,7 @@ async def check_phone(phone: int, db=Depends(data_b.connection), ):
 
 
 @app.get(path='/check_login', tags=['Auth'], responses=check_phone_res)
-async def check_phone(login: int, db=Depends(data_b.connection), ):
+async def check_login_in_db(login: str, db=Depends(data_b.connection), ):
     """You can check if such a login is in the database. Login is unique\n
     login: str login for check it in db"""
 

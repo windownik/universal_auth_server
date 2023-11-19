@@ -57,7 +57,6 @@ async def create_auth_table(db):
  phone BIGINT UNIQUE,
  login TEXT UNIQUE,
  hash_code TEXT DEFAULT '0',
- salt TEXT DEFAULT '0',
  create_date timestamp
  )''')
 
@@ -99,13 +98,12 @@ async def create_user_id(db: Depends, phone: int,):
 
 # Создаем новый токен
 async def create_user_id_login(db: Depends, login: str, password: str):
-    salt = generate_salt()
-    hash_code = hash_password(password=password, salt=salt)
+    hash_code = hash_password(password=password)
 
     create_date = datetime.datetime.now()
-    token = await db.fetch(f"INSERT INTO auth (login, hash_code, salt, create_date) "
-                           f"VALUES ($1, $2, $3, $4) "
-                           f"ON CONFLICT DO NOTHING RETURNING user_id;", login, hash_code, salt, create_date)
+    token = await db.fetch(f"INSERT INTO auth (login, hash_code, create_date) "
+                           f"VALUES ($1, $2, $3) "
+                           f"ON CONFLICT DO NOTHING RETURNING user_id;", login, hash_code, create_date)
     return token
 
 

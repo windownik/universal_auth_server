@@ -2,16 +2,18 @@ import bcrypt
 import secrets
 
 
-def generate_salt(length=16):
-    return secrets.token_hex(length // 2)
+def generate_salt():
+    salt = secrets.token_hex(16)
+    print(type(salt))
+    return salt
 
 
-def hash_password(password: str, salt: str):
-    hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt=salt.encode('utf-8'))
+def hash_password(password: str,):
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt=salt,)
+    return hashed_password.decode('utf-8')
 
-    return hashed_password
 
-
-def check_password(input_password: str, stored_hashed_password: str, salt: str):
-    hashed_input_password = bcrypt.hashpw(input_password.encode('utf-8'), salt.encode('utf-8'))
-    return hashed_input_password == stored_hashed_password
+def check_password(input_password: str, stored_hashed_password: str,) -> bool:
+    hashed_input_password = bcrypt.checkpw(input_password.encode('utf-8'), stored_hashed_password.encode('utf-8'))
+    return hashed_input_password
