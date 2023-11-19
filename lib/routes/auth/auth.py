@@ -268,8 +268,7 @@ async def create_account_user(phone: int, device_id: str, device_name: str, db=D
 
 
 @app.post(path='/create_account_login', tags=['Auth'], responses=post_create_account_res)
-async def create_account_user_with_login(login: str, password: str, device_id: str, device_name: str,
-                                         db=Depends(data_b.connection)):
+async def create_account_user_with_login(login: str, password: str, db=Depends(data_b.connection)):
     """Create new account in service with phone number, device_id and device_name"""
 
     user_data = await conn.read_data(db=db, name='*', table='auth', id_name='login', id_data=login)
@@ -280,10 +279,10 @@ async def create_account_user_with_login(login: str, password: str, device_id: s
 
     user_id = (await conn.create_user_id_login(db=db, login=login, password=password))[0][0]
 
-    access = await conn.create_token(db=db, user_id=user_id, token_type='access', device_id=device_id,
-                                     device_name=device_name)
-    refresh = await conn.create_token(db=db, user_id=user_id, token_type='refresh', device_id=device_id,
-                                      device_name=device_name)
+    access = await conn.create_token(db=db, user_id=user_id, token_type='access', device_id="no",
+                                     device_name="no")
+    refresh = await conn.create_token(db=db, user_id=user_id, token_type='refresh', device_id="no",
+                                      device_name="no")
 
     return JSONResponse(content={"ok": True,
                                  'user_id': user_id,
