@@ -137,6 +137,12 @@ async def update_user_active(db: Depends, user_id: int):
                    int(time.mktime(now.timetuple())), user_id)
 
 
+async def update_inform(db: Depends, name: str, data, table: str, id_name: str, id_data):
+    """Update information in table with one were"""
+    await db.fetch(f"UPDATE {table} SET {name}=$1 WHERE {id_name}=$2;",
+                   data, id_data)
+
+
 async def read_data(db: Depends, table: str, id_name: str, id_data, order: str = '', name: str = '*'):
     """Получаем актуальные события"""
     data = await db.fetch(f"SELECT {name} FROM {table} WHERE {id_name} = $1{order};", id_data)

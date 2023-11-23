@@ -4,7 +4,6 @@ import secrets
 
 def generate_salt():
     salt = secrets.token_hex(16)
-    print(type(salt))
     return salt
 
 

@@ -8,7 +8,7 @@ from starlette.responses import JSONResponse, HTMLResponse
 
 from lib import sql_connect as conn
 from lib.response_examples import *
-from lib.routes.auth.hash_funcs import check_password
+from lib.routes.auth.hash_funcs import check_password, hash_password
 from lib.sql_connect import data_b, app
 
 ip_server = os.environ.get("IP_SERVER")
@@ -207,9 +207,9 @@ async def check_sms_code(phone: int, sms_code: int, device_id: str, device_name:
                         status_code=_status.HTTP_200_OK)
 
 
-@app.post(path='/login', tags=['Auth'], responses=post_create_account_res)
-async def check_sms_code(login: str, password: str, device_id: str, device_name: str,
-                         db=Depends(data_b.connection)):
+@app.post(path='/login', tags=['Worker Auth'], responses=post_create_account_res)
+async def login_user_with_login(login: str, password: str, device_id: str, device_name: str,
+                                db=Depends(data_b.connection)):
     """Create new account in service with phone number, device_id and device_name"""
 
     user_date = await conn.read_data(db=db, table="auth", id_name="login", id_data=login)
@@ -266,9 +266,9 @@ async def create_account_user(phone: int, device_id: str, device_name: str, db=D
                         status_code=_status.HTTP_200_OK)
 
 
-@app.post(path='/create_account_login', tags=['Auth'], responses=post_create_account_res)
+@app.post(path='/create_account_login', tags=['Admin Auth'], responses=post_create_account_res)
 async def create_account_user_with_login(login: str, password: str, db=Depends(data_b.connection)):
-    """Create new account in service with phone number, device_id and device_name"""
+    """Create new worker account in service with login and password"""
 
     user_data = await conn.read_data(db=db, name='*', table='auth', id_name='login', id_data=login)
     if user_data:
@@ -278,6 +278,34 @@ async def create_account_user_with_login(login: str, password: str, db=Depends(d
 
     user_id = (await conn.create_user_id_login(db=db, login=login, password=password))[0][0]
 
+    access = await conn.create_token(db=db, user_id=user_id, token_type='access', device_id="no",
+                                     device_name="no")
+    refresh = await conn.create_token(db=db, user_id=user_id, token_type='refresh', device_id="no",
+                                      device_name="no")
+
+    return JSONResponse(content={"ok": True,
+                                 'user_id': user_id,
+                                 'access_token': access[0][0],
+                                 'refresh_token': refresh[0][0]
+                                 },
+                        status_code=_status.HTTP_200_OK)
+
+
+@app.post(path='/change_password', tags=['Admin Auth'], responses=post_create_account_res)
+async def change_password_for_worker(access_token: str, login: str, password: str, db=Depends(data_b.connection)):
+    """Create new account in service with phone number, device_id and device_name"""
+    res = await check_admin(access_token=access_token, db=db)
+    if type(res) != int:
+        return res
+
+    user_data = await conn.read_data(db=db, name='*', table='auth', id_name='login', id_data=login)
+    if not user_data:
+        return JSONResponse(content={"ok": False,
+                                     'description': "Haven't user with this login please check login"},
+                            status_code=_status.HTTP_400_BAD_REQUEST)
+    user_id = user_data[0][0]
+    hash_code = hash_password(password=password)
+    await conn.update_inform(db=db, table="auth", name="hash_code", data=hash_code, id_name="user_id", id_data=user_id)
     access = await conn.create_token(db=db, user_id=user_id, token_type='access', device_id="no",
                                      device_name="no")
     refresh = await conn.create_token(db=db, user_id=user_id, token_type='refresh', device_id="no",
@@ -307,7 +335,7 @@ async def check_phone(phone: int, db=Depends(data_b.connection), ):
                         status_code=_status.HTTP_400_BAD_REQUEST)
 
 
-@app.get(path='/check_login', tags=['Auth'], responses=check_phone_res)
+@app.get(path='/check_login', tags=['Admin Auth'], responses=check_phone_res)
 async def check_login_in_db(login: str, db=Depends(data_b.connection), ):
     """You can check if such a login is in the database. Login is unique\n
     login: str login for check it in db"""
@@ -315,11 +343,11 @@ async def check_login_in_db(login: str, db=Depends(data_b.connection), ):
     user_data = await conn.read_data(db=db, name='*', table='auth', id_name='login', id_data=login)
     if not user_data:
         return JSONResponse(content={"ok": True,
-                                     'description': 'This phone is not in database', },
+                                     'description': 'This login is not in database', },
                             status_code=_status.HTTP_200_OK,
                             headers={'content-type': 'application/json; charset=utf-8'})
     return JSONResponse(content={"ok": False,
-                                 'description': 'This phone is in database', },
+                                 'description': 'This login is in database', },
                         status_code=_status.HTTP_400_BAD_REQUEST)
 
 
