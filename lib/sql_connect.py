@@ -34,6 +34,7 @@ async def create_token_table(db):
  token_type TEXT DEFAULT 'access',
  device_id TEXT DEFAULT '0',
  device_name TEXT DEFAULT '0',
+ app_name TEXT DEFAULT 'tyre_app',
  create_date timestamp,
  death_date timestamp
  )''')
@@ -62,7 +63,7 @@ async def create_auth_table(db):
 
 
 # Создаем новый токен
-async def create_token(db: Depends, user_id: int, token_type: str, device_id: str, device_name: str):
+async def create_token(db: Depends, user_id: int, token_type: str, device_id: str, device_name: str, app_name: str):
     create_date = datetime.datetime.now()
     if token_type == 'access':
         death_date = create_date + datetime.timedelta(minutes=10)
@@ -71,9 +72,9 @@ async def create_token(db: Depends, user_id: int, token_type: str, device_id: st
     now = datetime.datetime.now()
     token = sha256(f"{user_id}.{now}.{secret}".encode('utf-8')).hexdigest()
     token = await db.fetch(f"INSERT INTO token (user_id, token, token_type, device_id, device_name, create_date, "
-                           f"death_date) VALUES ($1, $2, $3, $4, $5, $6, $7) "
+                           f"death_date, app_name) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) "
                            f"ON CONFLICT DO NOTHING RETURNING token;", user_id, token, token_type, device_id,
-                           device_name, create_date, death_date)
+                           device_name, create_date, death_date, app_name)
     return token
 
 
@@ -104,6 +105,14 @@ async def create_user_id_login(db: Depends, login: str, password: str):
     token = await db.fetch(f"INSERT INTO auth (login, hash_code, create_date) "
                            f"VALUES ($1, $2, $3) "
                            f"ON CONFLICT DO NOTHING RETURNING user_id;", login, hash_code, create_date)
+    return token
+
+
+async def update_user_id_login(db: Depends, login: str, password: str, user_id: int):
+    hash_code = hash_password(password=password)
+
+    token = await db.fetch(f"UPDATE auth SET login=$1, hash_code=$2 "
+                           f"WHERE user_id = $3;", login, hash_code, user_id)
     return token
 
 
@@ -163,8 +172,9 @@ async def delete_old_tokens(db: Depends):
 
 
 # Удаляем токены
-async def delete_all_tokens_with_device_id(db: Depends, device_id: str):
-    await db.execute(f"DELETE FROM token WHERE device_id = $1", device_id)
+async def delete_all_tokens_with_device_id(db: Depends, device_id: str, app_name: str, user_id: int):
+    await db.execute(f"DELETE FROM token WHERE device_id = $1 AND user_id = $2 AND app_name = $3", device_id, user_id,
+                     app_name)
 
 
 # Удаляем все записи из таблицы по ключу

@@ -51,7 +51,8 @@ async def main_page():
 
 
 @app.post(path='/create_access_token', tags=['Auth'], responses=access_token_res)
-async def create_new_access_token(refresh_token: str, device_id: str, device_name: str, db=Depends(data_b.connection)):
+async def create_new_access_token(refresh_token: str, device_id: str, device_name: str, app_name: str,
+                                  db=Depends(data_b.connection)):
     """Use it for create new access token and new refresh if it too old\n
     refresh_token: This is refresh token.
     You can get it when create account or login."""
@@ -66,10 +67,10 @@ async def create_new_access_token(refresh_token: str, device_id: str, device_nam
 
     if user_id[0][1] < less_3:
         refresh = await conn.create_token(db=db, user_id=user_id[0][0], token_type='refresh', device_id=device_id,
-                                          device_name=device_name)
+                                          device_name=device_name, app_name=app_name)
         refresh_token = refresh[0][0]
     access = await conn.create_token(db=db, user_id=user_id[0][0], token_type='access', device_id=device_id,
-                                     device_name=device_name)
+                                     device_name=device_name, app_name=app_name)
 
     # This code for update users active statistic
     # await conn.update_user_active(db=db, user_id=user_id[0][0])
@@ -156,14 +157,14 @@ async def delete_device(access_token: str, device_id: str, delete_device_id: str
 
 
 @app.get(path='/log_out', tags=['Auth'], responses=get_logout_res)
-async def login_user(access_token: str, device_id: str, db=Depends(data_b.connection)):
+async def login_user(access_token: str, device_id: str, app_name: str, db=Depends(data_b.connection)):
     user_id = await conn.get_user_id(db=db, token_type='access', token=access_token, device_id=device_id)
     if not user_id:
         return JSONResponse(content={"ok": False,
                                      'description': "bad refresh token or device_id, please login"},
                             status_code=_status.HTTP_401_UNAUTHORIZED)
     await conn.delete_old_tokens(db)
-    await conn.delete_all_tokens_with_device_id(db=db, device_id=device_id)
+    await conn.delete_all_tokens_with_device_id(db=db, device_id=device_id, user_id=user_id[0][0], app_name=app_name)
     return JSONResponse(content={"ok": True,
                                  'description': 'You successful logout'
                                  },
@@ -171,7 +172,7 @@ async def login_user(access_token: str, device_id: str, db=Depends(data_b.connec
 
 
 @app.post(path='/check_sms', tags=['Auth'], responses=post_create_account_res)
-async def check_sms_code(phone: int, sms_code: int, device_id: str, device_name: str,
+async def check_sms_code(phone: int, sms_code: int, device_id: str, device_name: str, app_name: str,
                          db=Depends(data_b.connection)):
     """Create new account in service with phone number, device_id and device_name"""
 
@@ -187,13 +188,14 @@ async def check_sms_code(phone: int, sms_code: int, device_id: str, device_name:
 
     user_data = await conn.read_data(db=db, name='*', table='auth', id_name='phone', id_data=phone)
     if user_data:
-        await conn.delete_old_tokens(db)
-        await conn.delete_all_tokens_with_device_id(db=db, device_id=device_id)
         user_id = user_data[0][0]
+        await conn.delete_old_tokens(db)
+        await conn.delete_all_tokens_with_device_id(db=db, device_id=device_id, user_id=user_id, app_name=app_name)
+
         access = (await conn.create_token(db=db, user_id=user_id, token_type='access', device_id=device_id,
-                                          device_name=device_name))[0][0]
+                                          device_name=device_name, app_name=app_name))[0][0]
         refresh = (await conn.create_token(db=db, user_id=user_id, token_type='refresh', device_id=device_id,
-                                           device_name=device_name))[0][0]
+                                           device_name=device_name, app_name=app_name))[0][0]
     else:
         user_id = 0
         access = '0'
@@ -208,9 +210,9 @@ async def check_sms_code(phone: int, sms_code: int, device_id: str, device_name:
 
 
 @app.post(path='/login', tags=['Worker Auth'], responses=post_create_account_res)
-async def login_user_with_login(login: str, password: str, device_id: str, device_name: str,
-                                db=Depends(data_b.connection)):
-    """Create new account in service with phone number, device_id and device_name"""
+async def login_worker(login: str, password: str, device_id: str, device_name: str, app_name: str,
+                       db=Depends(data_b.connection)):
+    """Login worker in service with login, password, device_id and device_name"""
 
     user_date = await conn.read_data(db=db, table="auth", id_name="login", id_data=login)
     if not user_date:
@@ -224,15 +226,15 @@ async def login_user_with_login(login: str, password: str, device_id: str, devic
         return JSONResponse(content={"ok": False,
                                      'description': 'No user with this login and password'},
                             status_code=_status.HTTP_401_UNAUTHORIZED)
-
-    await conn.delete_old_tokens(db)
-    await conn.delete_all_tokens_with_device_id(db=db, device_id=device_id)
     user_id = user_date[0][0]
-    access = (await conn.create_token(db=db, user_id=user_id, token_type='access', device_id=device_id,
-                                      device_name=device_name))[0][0]
-    refresh = (await conn.create_token(db=db, user_id=user_id, token_type='refresh', device_id=device_id,
-                                       device_name=device_name))[0][0]
+    await conn.delete_old_tokens(db)
+    await conn.delete_all_tokens_with_device_id(db=db, device_id=device_id, user_id=user_id, app_name=app_name)
 
+    access = (await conn.create_token(db=db, user_id=user_id, token_type='access', device_id=device_id,
+                                      device_name=device_name, app_name=app_name))[0][0]
+    refresh = (await conn.create_token(db=db, user_id=user_id, token_type='refresh', device_id=device_id,
+                                       device_name=device_name, app_name=app_name))[0][0]
+    await conn.update_user_active(db=db, user_id=user_id)
     return JSONResponse(content={"ok": True,
                                  'user_id': user_id,
                                  'access_token': access,
@@ -242,7 +244,8 @@ async def login_user_with_login(login: str, password: str, device_id: str, devic
 
 
 @app.post(path='/create_account', tags=['Auth'], responses=post_create_account_res)
-async def create_account_user(phone: int, device_id: str, device_name: str, db=Depends(data_b.connection)):
+async def create_account_user(phone: int, device_id: str, device_name: str, app_name: str,
+                              db=Depends(data_b.connection)):
     """Create new account in service with phone number, device_id and device_name"""
 
     user_data = await conn.read_data(db=db, name='*', table='auth', id_name='phone', id_data=phone)
@@ -254,9 +257,9 @@ async def create_account_user(phone: int, device_id: str, device_name: str, db=D
     user_id = (await conn.create_user_id(db=db, phone=phone))[0][0]
 
     access = await conn.create_token(db=db, user_id=user_id, token_type='access', device_id=device_id,
-                                     device_name=device_name)
+                                     device_name=device_name, app_name=app_name)
     refresh = await conn.create_token(db=db, user_id=user_id, token_type='refresh', device_id=device_id,
-                                      device_name=device_name)
+                                      device_name=device_name, app_name=app_name)
 
     return JSONResponse(content={"ok": True,
                                  'user_id': user_id,
@@ -267,7 +270,8 @@ async def create_account_user(phone: int, device_id: str, device_name: str, db=D
 
 
 @app.post(path='/create_account_login', tags=['Admin Auth'], responses=post_create_account_res)
-async def create_account_user_with_login(login: str, password: str, db=Depends(data_b.connection)):
+async def create_account_user_with_login(login: str, password: str, app_name: str, owner_id: int = 0,
+                                         db=Depends(data_b.connection)):
     """Create new worker account in service with login and password"""
 
     user_data = await conn.read_data(db=db, name='*', table='auth', id_name='login', id_data=login)
@@ -276,12 +280,16 @@ async def create_account_user_with_login(login: str, password: str, db=Depends(d
                                      'description': 'Have user with this login please login'},
                             status_code=_status.HTTP_400_BAD_REQUEST)
 
-    user_id = (await conn.create_user_id_login(db=db, login=login, password=password))[0][0]
+    if owner_id != 0:
+        await conn.update_user_id_login(db=db, login=login, password=password, user_id=owner_id)
+        user_id = owner_id
+    else:
+        user_id = (await conn.create_user_id_login(db=db, login=login, password=password))[0][0]
 
     access = await conn.create_token(db=db, user_id=user_id, token_type='access', device_id="no",
-                                     device_name="no")
+                                     device_name="no", app_name=app_name)
     refresh = await conn.create_token(db=db, user_id=user_id, token_type='refresh', device_id="no",
-                                      device_name="no")
+                                      device_name="no", app_name=app_name)
 
     return JSONResponse(content={"ok": True,
                                  'user_id': user_id,
@@ -292,7 +300,8 @@ async def create_account_user_with_login(login: str, password: str, db=Depends(d
 
 
 @app.post(path='/change_password', tags=['Admin Auth'], responses=post_create_account_res)
-async def change_password_for_worker(access_token: str, login: str, password: str, db=Depends(data_b.connection)):
+async def change_password_for_worker(access_token: str, login: str, password: str, app_name: str,
+                                     db=Depends(data_b.connection)):
     """Create new account in service with phone number, device_id and device_name"""
     res = await check_admin(access_token=access_token, db=db)
     if type(res) != int:
@@ -307,9 +316,9 @@ async def change_password_for_worker(access_token: str, login: str, password: st
     hash_code = hash_password(password=password)
     await conn.update_inform(db=db, table="auth", name="hash_code", data=hash_code, id_name="user_id", id_data=user_id)
     access = await conn.create_token(db=db, user_id=user_id, token_type='access', device_id="no",
-                                     device_name="no")
+                                     device_name="no", app_name=app_name)
     refresh = await conn.create_token(db=db, user_id=user_id, token_type='refresh', device_id="no",
-                                      device_name="no")
+                                      device_name="no", app_name=app_name)
 
     return JSONResponse(content={"ok": True,
                                  'user_id': user_id,
