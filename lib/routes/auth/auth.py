@@ -8,6 +8,7 @@ from starlette.responses import JSONResponse, HTMLResponse
 
 from lib import sql_connect as conn
 from lib.response_examples import *
+from lib.routes.auth.check_sms import send_sms_code
 from lib.routes.auth.hash_funcs import check_password, hash_password
 from lib.sql_connect import data_b, app
 
@@ -365,8 +366,12 @@ async def send_sms_code_to_phone(phone: int, device_id: str, db=Depends(data_b.c
     """Here you can send sms code to your phone number\n
     phone: int phone for check it in db"""
     code: int = random.randrange(1009, 9999)
+    if str(phone).startswith("3"):
+        code = 1111
+    else:
+        send_sms_code(check_code=code, phone=phone)
     await conn.delete_where(db=db, table='sms_code', id_name='phone', data=phone)
-    data = await conn.save_sms_code(db=db, phone=phone, code=1111, device_id=device_id)
+    data = await conn.save_sms_code(db=db, phone=phone, code=code, device_id=device_id)
     if data:
         return JSONResponse(content={"ok": True,
                                      'description': 'Check your phone number', },
